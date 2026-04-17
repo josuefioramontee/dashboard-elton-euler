@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Projeção Diária — Elton Euler</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #18181f;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #f0eee8;
+    --muted: #6b6a72;
+    --accent: #c8ff00;
+    --accent-dim: rgba(200,255,0,0.12);
+    --red: #ff4d4d;
+    --red-dim: rgba(255,77,77,0.12);
+    --teal: #00e5b4;
+    --teal-dim: rgba(0,229,180,0.1);
+    --amber: #ffb020;
+    --amber-dim: rgba(255,176,32,0.1);
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  html { background: var(--bg); color: var(--text); font-family: var(--font-display); }
+
+  body {
+    min-height: 100vh;
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse 60% 40% at 80% 10%, rgba(200,255,0,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 30% at 10% 80%, rgba(0,229,180,0.03) 0%, transparent 50%);
+  }
+
+  .page { max-width: 1100px; margin: 0 auto; padding: 48px 24px; }
+
+  /* Header */
+  .header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 48px; gap: 24px; flex-wrap: wrap; }
+  .header-left {}
+  .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+  .title { font-size: 36px; font-weight: 800; line-height: 1.1; color: var(--text); }
+  .title span { color: var(--muted); }
+  .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .period-badge {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 6px 14px;
+    border: 0.5px solid var(--border2);
+    border-radius: 4px;
+    color: var(--muted);
+    background: var(--surface);
+  }
+  .alert-bar {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 6px 14px;
+    border-radius: 4px;
+    background: var(--red-dim);
+    color: var(--red);
+    border: 0.5px solid rgba(255,77,77,0.25);
+  }
+
+  /* KPI grid */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 40px; }
+  .kpi {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--kpi-accent, var(--border2));
+    border-radius: 2px 2px 0 0;
+  }
+  .kpi.accent-green { --kpi-accent: var(--accent); }
+  .kpi.accent-teal  { --kpi-accent: var(--teal); }
+  .kpi.accent-amber { --kpi-accent: var(--amber); }
+  .kpi.accent-red   { --kpi-accent: var(--red); }
+
+  .kpi-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .kpi-value { font-size: 26px; font-weight: 800; line-height: 1; margin-bottom: 6px; }
+  .kpi.accent-green .kpi-value { color: var(--accent); }
+  .kpi.accent-teal  .kpi-value { color: var(--teal); }
+  .kpi.accent-amber .kpi-value { color: var(--amber); }
+  .kpi.accent-red   .kpi-value { color: var(--red); }
+  .kpi-sub { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+
+  /* Section label */
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; margin-bottom: 40px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 14px;
+    text-align: right;
+    border-bottom: 0.5px solid var(--border2);
+    white-space: nowrap;
+  }
+  thead th:first-child { text-align: left; }
+  tbody tr { transition: background 0.15s; }
+  tbody tr:hover { background: var(--surface2); }
+  td {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 12px 14px;
+    text-align: right;
+    border-bottom: 0.5px solid var(--border);
+    color: var(--text);
+    white-space: nowrap;
+  }
+  td:first-child { text-align: left; font-family: var(--font-display); font-weight: 600; font-size: 13px; }
+  .roas-chip {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--red-dim);
+    color: var(--red);
+    border: 0.5px solid rgba(255,77,77,0.2);
+  }
+  .vendas-dia {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .vendas-dia.highlight { color: var(--teal); }
+
+  /* Charts */
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px; }
+  .chart-card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+  }
+  .chart-title { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 20px; }
+  .chart-inner { position: relative; width: 100%; height: 200px; }
+
+  /* Bottom alert */
+  .bottom-alert {
+    background: var(--red-dim);
+    border: 0.5px solid rgba(255,77,77,0.2);
+    border-radius: 8px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .alert-icon { font-size: 18px; margin-top: 1px; flex-shrink: 0; color: var(--red); }
+  .alert-content {}
+  .alert-title { font-size: 13px; font-weight: 700; color: var(--red); margin-bottom: 6px; }
+  .alert-text { font-size: 12px; color: rgba(255,77,77,0.7); line-height: 1.6; }
+
+  /* Footer */
+  .footer { margin-top: 48px; padding-top: 20px; border-top: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .footer-left { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+  .footer-right { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+
+  @media (max-width: 700px) {
+    .kpi-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .charts-grid { grid-template-columns: 1fr; }
+    .title { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="header-left">
+      <div class="eyebrow">Etapa 04 — Vendas Diárias VSL</div>
+      <div class="title">Projeção Diária<br><span>18 → 25 de Abril</span></div>
+    </div>
+    <div class="header-right">
+      <div class="period-badge">Base: 01/04 – 17/04</div>
+      <div class="period-badge">Investimento: R$ 5.200 / dia</div>
+      <div class="alert-bar">ROAS 2,47 — Meta 4,0</div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi accent-green">
+      <div class="kpi-label">Faturamento projetado</div>
+      <div class="kpi-value">R$ 240k</div>
+      <div class="kpi-sub">acumulado até 25/04</div>
+    </div>
+    <div class="kpi accent-teal">
+      <div class="kpi-label">Investimento total</div>
+      <div class="kpi-value">R$ 97k</div>
+      <div class="kpi-sub">acumulado até 25/04</div>
+    </div>
+    <div class="kpi accent-amber">
+      <div class="kpi-label">Vendas projetadas</div>
+      <div class="kpi-value">97</div>
+      <div class="kpi-sub">~5 fechamentos/dia</div>
+    </div>
+    <div class="kpi accent-red">
+      <div class="kpi-label">ROAS projetado</div>
+      <div class="kpi-value">2,47</div>
+      <div class="kpi-sub">meta: 4,0 — deficit alto</div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="section-label">Detalhamento diário</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Invest. acum.</th>
+          <th>Fichas acum.</th>
+          <th>Vendas/dia</th>
+          <th>Vendas acum.</th>
+          <th>Fat. acum.</th>
+          <th>ROAS</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Charts -->
+  <div class="section-label">Evolução visual</div>
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Faturamento acumulado</div>
+      <div class="chart-inner">
+        <canvas id="fatChart" role="img" aria-label="Faturamento acumulado de R$151k em 18/04 a R$240k em 25/04"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Vendas acumuladas</div>
+      <div class="chart-inner">
+        <canvas id="vendasChart" role="img" aria-label="Vendas acumuladas de 61 em 18/04 a 97 em 25/04"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alert -->
+  <div class="bottom-alert">
+    <div class="alert-icon">&#9650;</div>
+    <div class="alert-content">
+      <div class="alert-title">Atenção: ROAS estável em 2,47 durante toda a projeção</div>
+      <div class="alert-text">
+        Com o cenário atual, o ROAS não se recupera sozinho. O gargalo principal é a Taxa de Sim para Terapia (33% vs meta 60%). Corrigindo a qualificação dos leads para 50%+, o faturamento projetado pode subir para ~R$ 321k no mesmo período com o mesmo investimento.
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-left">Elton Euler — Vendas Diárias VSL</div>
+    <div class="footer-right">Gerado em 17/04/2025</div>
+  </div>
+
+</div>
+
+<script>
+const rows = [
+  { date: '18/04', investAcum: 60787, fichasAcum: 2558, vendasDia: 5, vendasAcum: 61,  fatAcum: 151280 },
+  { date: '19/04', investAcum: 65987, fichasAcum: 2777, vendasDia: 5, vendasAcum: 66,  fatAcum: 163680 },
+  { date: '20/04', investAcum: 71187, fichasAcum: 2996, vendasDia: 5, vendasAcum: 71,  fatAcum: 176080 },
+  { date: '21/04', investAcum: 76387, fichasAcum: 3215, vendasDia: 5, vendasAcum: 76,  fatAcum: 188480 },
+  { date: '22/04', investAcum: 81587, fichasAcum: 3434, vendasDia: 5, vendasAcum: 81,  fatAcum: 200880 },
+  { date: '23/04', investAcum: 86787, fichasAcum: 3653, vendasDia: 5, vendasAcum: 86,  fatAcum: 213280 },
+  { date: '24/04', investAcum: 91987, fichasAcum: 3872, vendasDia: 6, vendasAcum: 92,  fatAcum: 228160 },
+  { date: '25/04', investAcum: 97187, fichasAcum: 4091, vendasDia: 5, vendasAcum: 97,  fatAcum: 240560 },
+];
+
+const fmt = v => 'R$ ' + v.toLocaleString('pt-BR');
+const tbody = document.getElementById('tbody');
+
+rows.forEach(r => {
+  const roas = (r.fatAcum / r.investAcum).toFixed(2);
+  const isHighlight = r.vendasDia === 6;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${r.date}</td>
+    <td>${fmt(r.investAcum)}</td>
+    <td>${r.fichasAcum.toLocaleString('pt-BR')}</td>
+    <td><span class="vendas-dia${isHighlight ? ' highlight' : ''}">${r.vendasDia}</span></td>
+    <td>${r.vendasAcum}</td>
+    <td>${fmt(r.fatAcum)}</td>
+    <td><span class="roas-chip">${roas}</span></td>
+  `;
+  tbody.appendChild(tr);
+});
+
+const labels = rows.map(r => r.date);
+const gridCol = 'rgba(255,255,255,0.06)';
+const tickCol = '#6b6a72';
+
+new Chart(document.getElementById('fatChart'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [{
+      data: rows.map(r => r.fatAcum),
+      borderColor: '#c8ff00',
+      backgroundColor: 'rgba(200,255,0,0.07)',
+      fill: true,
+      tension: 0.35,
+      pointRadius: 4,
+      pointBackgroundColor: '#c8ff00',
+      pointBorderColor: '#0a0a0f',
+      pointBorderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: {
+      backgroundColor: '#18181f',
+      borderColor: 'rgba(255,255,255,0.1)',
+      borderWidth: 1,
+      titleColor: '#c8ff00',
+      bodyColor: '#f0eee8',
+      callbacks: { label: ctx => 'R$ ' + ctx.parsed.y.toLocaleString('pt-BR') }
+    }},
+    scales: {
+      x: { ticks: { color: tickCol, font: { size: 10, family: 'DM Mono' }, autoSkip: false, maxRotation: 45 }, grid: { color: gridCol } },
+      y: { ticks: { color: tickCol, font: { size: 10, family: 'DM Mono' }, callback: v => 'R$' + (v/1000).toFixed(0) + 'k' }, grid: { color: gridCol } }
+    }
+  }
+});
+
+new Chart(document.getElementById('vendasChart'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [{
+      data: rows.map(r => r.vendasAcum),
+      backgroundColor: rows.map(r => r.vendasDia === 6 ? '#00e5b4' : 'rgba(200,255,0,0.5)'),
+      borderRadius: 4,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: {
+      backgroundColor: '#18181f',
+      borderColor: 'rgba(255,255,255,0.1)',
+      borderWidth: 1,
+      titleColor: '#c8ff00',
+      bodyColor: '#f0eee8',
+    }},
+    scales: {
+      x: { ticks: { color: tickCol, font: { size: 10, family: 'DM Mono' }, autoSkip: false, maxRotation: 45 }, grid: { color: gridCol } },
+      y: { ticks: { color: tickCol, font: { size: 10, family: 'DM Mono' } }, grid: { color: gridCol }, min: 55 }
+    }
+  }
+});
+</script>
+</body>
+</html>
